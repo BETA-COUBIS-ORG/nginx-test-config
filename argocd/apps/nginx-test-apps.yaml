@@ -1,0 +1,57 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-test-helm-dev
+  namespace: argocd
+spec:
+  project: default
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-test-dev
+
+  source:
+    repoURL: https://github.com/BETA-COUBIS-ORG/nginx-test-config.git
+    targetRevision: main
+    path: helm/nginx-test-helm
+    helm:
+      releaseName: nginx-test
+      values: |
+        replicaCount: 1
+        service:
+          type: LoadBalancer
+          port: 80
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-test-kustomize-dev
+  namespace: argocd
+spec:
+  project: default
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-test-dev
+
+  source:
+    repoURL: https://github.com/BETA-COUBIS-ORG/nginx-test-config.git
+    targetRevision: main
+    path: kustomize/nginx-test-kustomize/overlays/dev
+    kustomize: {}
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
