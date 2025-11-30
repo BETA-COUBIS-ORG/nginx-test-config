@@ -1,1 +1,175 @@
 ok
+
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+
+
+
+
+1. Make sure you’re on the right cluster
+
+If you have multiple clusters, first be sure you’re talking to the one where ArgoCD should live:
+
+
+kubectl config current-context
+kubectl get ns
+
+
+
+If needed:
+
+aws eks update-kubeconfig --name <your-eks-name> --region <your-region>
+aws eks update-kubeconfig --name 1988-dev-pipeline-eks88 --region us-east-1
+
+2. Check if the ArgoCD CRD exists
+
+
+
+kubectl get crd | grep applications.argoproj.io
+
+
+If you see nothing → ArgoCD CRDs are missing → install ArgoCD (next step).
+
+If you see a line → something else is wrong (but from your error, it’s almost surely missing).
+
+3. Install ArgoCD on this cluster
+
+Create the namespace (you already did, but it’s safe):
+
+
+
+kubectl create namespace argocd || true
+
+
+
+Install ArgoCD (CRDs + controller + UI):
+
+
+
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+
+
+Wait for pods to be ready:
+
+kubectl get pods -n argocd
+
+
+You should see things like argocd-server, argocd-repo-server, argocd-application-controller, etc., in Running state.
+
+4. Apply your Application again
+
+Now re-apply your app manifest:
+
+cd ~/Desktop/ALL-EKS-BACKUP/nginx-test-config/nginx-test-config/argocd/apps
+
+
+
+kubectl apply -n argocd -f nginx-test-apps.yaml
+
+
+
+Now it should succeed, and you can confirm:
+
+
+
+kubectl get applications -n argocd
+
+
+
+You should see:
+
+nginx-test-helm-dev
+
+nginx-test-kustomize-dev
+
+listed as ArgoCD Application objects.
+
+
+
+You’ve got ArgoCD running; now you just need a way to reach the UI.
+
+You have two easy options:
+
+quick & safe from your laptop only (port-forward)
+
+public-ish via a LoadBalancer (EKS style)
+
+Option 1 – Quick local access (port-forward)
+
+Make sure ArgoCD server service exists:
+
+kubectl get svc -n argocd
+# you should see: argocd-server  ...  ClusterIP ...
+
+
+Port-forward from your laptop:
+
+
+
+
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+
+
+
+Leave that command running.
+
+In your browser go to:
+
+
+
+
+https://localhost:8080
+
+
+
+
+(It’s https; you’ll get a self-signed cert warning, just accept/continue.)
+
+Get the initial admin password:
+
+
+
+
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d; echo
+
+
+
+
+username: admin
+
+password: the value printed above
+
+Option 2 – Expose via LoadBalancer (EKS)
+
+If you want a public URL/IP from AWS:
+
+Change the service type:
+
+
+
+kubectl patch svc argocd-server -n argocd \
+  -p '{"spec": {"type": "LoadBalancer"}}'
+
+
+Get the external address:
+
+kubectl get svc argocd-server -n argocd
+
+
+Look for EXTERNAL-IP (or hostname).
+
+Open in browser:
+
+https://<EXTERNAL-IP or hostname>
+
+
+Login with:
+
+admin
+
+password from the argocd-initial-admin-secret command above.
+
+If you tell me which option you prefer, I can also help you add DNS (like argocd.yourdomain.com) and clean it up.
